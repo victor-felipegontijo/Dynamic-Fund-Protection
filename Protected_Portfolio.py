@@ -31,22 +31,33 @@ def Gen_F(S,K):
     
     l = len(S)
     
-    positions = [S[0]]
+    positions = []
 
-    most_neg = 1000000000000
-    Been_neg = False
+    max_ratio = 1
+    # Generate the increments
+    for i in range(0,l):
+
+        ratio = K/S[i]
+        
+        if ratio > max_ratio:
+            max_ratio = ratio
+
+        positions.append(S[i]*max_ratio)
+    return positions
+
+# Takes a path of S and returns the F-correspondent path
+def Gen_F2(S,K):
+    
+    l = len(S)
+    
+    N = max(1, K/S[0])
+    positions = [max(K,S[0])]
+
     # Generate the increments
     for i in range(1,l):
 
-        if (S[i] < K):
-            if(Been_neg == False):
-                Been_neg = True
-            
-            if (S[i] < most_neg):
-                most_neg = S[i]
+        dN = max(K/S[i] - N , 0)
+        N = N + dN
+        positions.append(N*S[i])
         
-        if(Been_neg == False):
-            positions.append(S[i])
-        else:
-            positions.append(S[i]*K/most_neg)
     return positions

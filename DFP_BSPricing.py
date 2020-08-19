@@ -6,25 +6,25 @@ from statistics import stdev
 from statistics import mean
 
 # 1) - Black Scholes DFP - Pricing from Closed Formula
-def DFP_BSPricing_Formula(S_t, M_t, r, sigma, K, t, T):
+def DFP_BSPricing_Formula(S_t, M_t, r, q, sigma, K, t, T):
 
     tau = T-t
     if (tau == 0):
         tau = 0.0001
 
-    R = 2*r/(sigma*sigma)
+    R = 2*(r-q)/(sigma*sigma)
     K_prime = K/M_t
     kappa = math.log(S_t/K_prime)
 
-    d1 = (kappa + r*tau + 0.5*sigma*sigma*tau)/(sigma*math.sqrt(tau))
-    d2 = (-kappa + r*tau + 0.5*sigma*sigma*tau)/(sigma*math.sqrt(tau))
-    d3 = (-kappa - r*tau + 0.5*sigma*sigma*tau)/(sigma*math.sqrt(tau))
+    d1 = (kappa + (r-q)*tau + 0.5*sigma*sigma*tau)/(sigma*math.sqrt(tau))
+    d2 = (-kappa + (r-q)*tau + 0.5*sigma*sigma*tau)/(sigma*math.sqrt(tau))
+    d3 = (-kappa - (r-q)*tau + 0.5*sigma*sigma*tau)/(sigma*math.sqrt(tau))
 
     s1 = S_t*( M_t*norm.cdf(d1) - 1)
     s2 = K/R*math.pow((K_prime/S_t),R)*norm.cdf(d2)
-    s3 = (1 - 1/R)*K*math.exp(-r*tau)*norm.cdf(d3)
+    s3 = (1 - 1/R)*K*math.exp(-(r-q)*tau)*norm.cdf(d3)
 
-    return s1 + s2 + s3
+    return math.exp(-q*tau)*(s1 + s2 + s3)
 
 ################################################################################################################################################
 
@@ -66,18 +66,18 @@ def Integral_F_over_x2(K, B, mu_, r, sigma, tau, S_t,):
     return s1 + s2
 
 ## 2.4) - Black Scholes DFP pricing from the integrals above
-def DFP_BSPricing_Expectations(S_t, M_t, r, sigma, K, t, T):
+def DFP_BSPricing_Expectations(S_t, M_t, r, q, sigma, K, t, T):
 
     tau = T-t
     if (tau == 0):
         tau = 0.0001
     
-    mu_ = r + (sigma*sigma)/2
+    mu_ = r - q + (sigma*sigma)/2
     
-    s1 = S_t*(M_t - 1)
-    s2 = S_t*Integral_F_over_x2(K, (K/M_t), mu_, r, sigma, tau, S_t)
+    s1 = M_t - 1
+    s2 = Integral_F_over_x2(K, (K/M_t), mu_, r, sigma, tau, S_t)
     
-    return s1 + s2
+    return math.exp(-q*tau)*S_t*(s1 + s2)
 
 ################################################################################################################################################
 
@@ -88,7 +88,7 @@ def DFP_BSPricing_Expectations(S_t, M_t, r, sigma, K, t, T):
 ## 3.1) - Traditional Monte-Carlo
 
 ###  3.1.1) - Generates a single sample path and determines the payoff under discrete monitoring
-def DFP_BSDiscrete_Simulation(instants, S_t, M_t, r, sigma, K):
+def DFP_BSDiscrete_Simulation(instants, S_t, M_t, r, q, sigma, K):
 
     l = len(instants)
     min_S = S_t
@@ -97,7 +97,7 @@ def DFP_BSDiscrete_Simulation(instants, S_t, M_t, r, sigma, K):
     # Generate the increments
     for i in range(1,l):
         dt = instants[i] - instants[i-1]
-        S = S*math.exp( (r - sigma*sigma/2 )*dt + sigma*np.random.normal(0, math.sqrt(dt)) ) 
+        S = S*math.exp( (r - q - sigma*sigma/2 )*dt + sigma*np.random.normal(0, math.sqrt(dt)) ) 
 
         if(S < min_S):
             min_S = S
@@ -111,14 +111,14 @@ def DFP_BSDiscrete_Simulation(instants, S_t, M_t, r, sigma, K):
     return discounting_factor*XT
 
 ###  3.1.2) - Determines the discrete-monitoring payoff under several simulation trials and calculates the empirical mean 
-def DFP_BSPricing_MonteCarloDiscrete(instants, n_simulations, S_t, M_t, r, sigma, K):
+def DFP_BSPricing_MonteCarloDiscrete(instants, n_simulations, S_t, M_t, r, q, sigma, K):
     
     l = len(instants)
    
     results = []
 
     for i in range(0, n_simulations):
-        results.append( DFP_BSDiscrete_Simulation(instants, S_t, M_t, r, sigma, K) )
+        results.append( DFP_BSDiscrete_Simulation(instants, S_t, M_t, r, q, sigma, K) )
     
     print('Mean obtained with Discrete Monte-Carlo (' + str(n_simulations) + ' simulations, each one with ' + str(l) + ' discrete steps): ' + str(mean(results)))
     print('Standard Deviation obtained with Discrete Monte-Carlo: (' + str(n_simulations) + ' simulations, each one with ' + str(l) + ' discrete steps): ' + str(stdev(results)))
@@ -129,9 +129,9 @@ def DFP_BSPricing_MonteCarloDiscrete(instants, n_simulations, S_t, M_t, r, sigma
 ## 3.2) - Brownian-Bridge Monte-Carlo 
 
 ###  3.2.1) - Determines the payoff of a single sample path by simulating the final and minumum values
-def DFP_BSBrownianBridge_Simulation(S_t, M_t, r, sigma, K, tau):
+def DFP_BSBrownianBridge_Simulation(S_t, M_t, r, q, sigma, K, tau):
 
-    S = S_t*math.exp( (r - sigma*sigma/2 )*tau + sigma*np.random.normal(0, math.sqrt(tau)) )
+    S = S_t*math.exp( (r - q - sigma*sigma/2 )*tau + sigma*np.random.normal(0, math.sqrt(tau)) )
     u = np.random.uniform()
     
     w_t = math.log(S_t)
@@ -148,12 +148,12 @@ def DFP_BSBrownianBridge_Simulation(S_t, M_t, r, sigma, K, tau):
     return discounting_factor*XT
 
 ###  3.2.2) - Determine the "brownian-bridge" payoff under several simulation trials and calculates the empirical mean 
-def DFP_BSPricing_MonteCarloBB(n_simulations, S_t, M_t, r, sigma, K, tau):
+def DFP_BSPricing_MonteCarloBB(n_simulations, S_t, M_t, r, q, sigma, K, tau):
 
     results = []
 
     for i in range(0, n_simulations):
-        results.append( DFP_BSBrownianBridge_Simulation(S_t, M_t, r, sigma, K, tau) )
+        results.append( DFP_BSBrownianBridge_Simulation(S_t, M_t, r, q, sigma, K, tau) )
     
     print('Mean obtained with Brownian-Bridge Monte-Carlo (' + str(n_simulations) + ' simulations): ' + str(mean(results)))
     print('Standard Deviation obtained with Brownian-Bridge Monte-Carlo: (' + str(n_simulations) + ' simulations): ' + str(stdev(results)))
